@@ -1,3 +1,4 @@
 asyncssh==2.4.2
 PyYAML==5.3.1
+deepmerge==0.1.1
 addict==2.3.0
