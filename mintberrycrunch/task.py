@@ -8,6 +8,7 @@ class Task(SubscriberBase):
         self.name = name
         subscribe_events = ["Tasks", "Global", f"Task_{self.name}"]
         super().__init__(global_state, subscribe_events)
+        self.global_state.tasks = self.global_state.subscribers['Tasks']
         groups_list = [task_dict['groups']] \
             if isinstance(task_dict['groups'], str) else task_dict['groups']
 

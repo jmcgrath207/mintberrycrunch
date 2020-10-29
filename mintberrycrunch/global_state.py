@@ -1,13 +1,16 @@
 from addict import Dict
 from deepmerge import always_merger
+from mintberrycrunch.base import Base
 
 
-class GlobalState:
+class GlobalState(Base):
 
     def __init__(self):
-        events = ["Hosts", "Groups", "Global"]
-        self.subscribers = {event: dict() for event in events}
-        self._attrs = False
+        default_events = ["Hosts", "Groups", "Tasks", "Global"]
+        self.subscribers = {event: dict() for event in default_events}
+        self.tasks = None
+        self.groups = None
+        self.hosts = None
 
     def register(self, event, who):
         if not bool(self.subscribers.get(event)):
@@ -21,14 +24,3 @@ class GlobalState:
     def dispatch(self, event, message):
         for who in self.subscribers[event]:
             who.receive(message)
-
-
-    @property
-    def attrs(self):
-        """I'm the 'x' property."""
-        return self._attrs
-
-    @attrs.setter
-    def attrs(self, dictionary):
-        _attrs = always_merger.merge(dictionary, self._attrs)
-        self._attrs = Dict(_attrs)

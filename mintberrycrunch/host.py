@@ -9,6 +9,7 @@ class Host(SubscriberBase):
         self.name = host_dict.pop('name')
         subscribe_events = ["Hosts", "Global", f"Host_{self.name}"]
         super().__init__(global_state, subscribe_events)
+        self.global_state.hosts = self.global_state.subscribers['Hosts']
         if bool(host_dict.get('ssh')):
             self.ssh = SSH(host_dict.pop('ssh'))
         self.attrs = host_dict

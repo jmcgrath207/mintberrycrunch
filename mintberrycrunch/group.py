@@ -8,6 +8,7 @@ class Group(SubscriberBase):
         self.name = name
         subscribe_events = ["Groups", "Global", f"Group_{self.name}"]
         super().__init__(global_state, subscribe_events)
+        self.global_state.groups = self.global_state.subscribers['Groups']
         hosts_list = group_dict.pop('hosts')
         self.hosts = []
         self.tasks = []

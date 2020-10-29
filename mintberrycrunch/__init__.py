@@ -12,18 +12,41 @@ import copy
 app = SimpleNamespace()
 
 
-
-
 async def init(*args) -> None:
     create_states(args)
     await route_tasks()
 
 
+def normalize(config_list: list) -> dict:
+    temp_list = []
+    for config in config_list:
+        if bool(config.get('groups')):
+            config = normalize_groups(config)
+        if bool(config.get('tasks')):
+            config = normalize_tasks(config)
+        temp_list.append(config)
+
+    config_dict = always_merger.merge(*temp_list)
+    del config_dict['path']
+    return config_dict
+
+
+def normalize_tasks(config_dict: dict):
+    tasks_dict = config_dict.pop('tasks')
+    temp_tasks_dict = {}
+    for key, value in tasks_dict.items():
+        temp_tasks_dict[key] = value
+        script_path = (Path(config_dict['path']).parent / value.get('script_path')).resolve()
+        if script_path.exists():
+            temp_tasks_dict[key]['script_path'] = script_path
+        else:
+            raise FileNotFoundError
+    config_dict['tasks'] = temp_tasks_dict
+    return config_dict
 
 
 
-
-def normalize_groups_hosts(config_dict: dict):
+def normalize_groups(config_dict: dict):
     group_dict = config_dict.pop('groups')
     temp_group_dict = {}
     for key, value in group_dict.items():
@@ -46,13 +69,15 @@ def normalize_groups_hosts(config_dict: dict):
 
 def create_states(args):
     app.global_state = GlobalState()
+
     temp_list = []
     for x in args:
         with open(x, 'r') as stream:
-            temp_list.append(yaml.safe_load(stream))
-    merged_dict = normalize_groups_hosts(always_merger.merge(*temp_list))
+            temp_list.append({**{'path': x}, **yaml.safe_load(stream)})
+    config_dict = normalize(temp_list)
+    app.global_state.attrs = config_dict.pop('global-state')
     all_hosts = []
-    for key, value in merged_dict["groups"].items():
+    for key, value in config_dict["groups"].items():
         all_hosts.extend(value['hosts'])
 
     reduce_duplicates_hosts = copy.deepcopy([i for n, i in enumerate(all_hosts) if i not in all_hosts[n + 1:]])
@@ -60,10 +85,10 @@ def create_states(args):
     for host in reduce_duplicates_hosts:
         Host(host, app.global_state)
 
-    for key, value in merged_dict["groups"].items():
+    for key, value in config_dict["groups"].items():
         Group(key, app.global_state, value)
 
-    for key, value in merged_dict["tasks"].items():
+    for key, value in config_dict["tasks"].items():
         Task(key, app.global_state, value)
 
     print()
