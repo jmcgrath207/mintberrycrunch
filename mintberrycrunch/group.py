@@ -1,6 +1,6 @@
 from mintberrycrunch.subscriber_base import SubscriberBase
 from mintberrycrunch.global_state import GlobalState
-from mintberrycrunch.host import Host
+
 
 class Group(SubscriberBase):
 
@@ -10,6 +10,7 @@ class Group(SubscriberBase):
         super().__init__(global_state, subscribe_events)
         hosts_list = group_dict.pop('hosts')
         self.hosts = []
+        self.tasks = []
         self.attrs = group_dict
         all_hosts_names = {x.name: x for x in global_state.subscribers['Hosts']}
         for host in hosts_list:
@@ -17,13 +18,7 @@ class Group(SubscriberBase):
                 host = all_hosts_names.get(host['name'])
                 self.hosts.append(host)
                 host.groups.append(self)
-                host.new_subscribe_events(f"Group_{self.name}")
-
-
-
-
-        print()
-
+                # host.new_subscribe_events(f"Group_{self.name}")
 
     def __repr__(self):
         return f'{self.name}'

@@ -1,6 +1,6 @@
 from abc import ABC, abstractmethod
-from addict import Dict
-from deepmerge import always_merger
+from mintberrycrunch.base import Base
+
 from mintberrycrunch.global_state import GlobalState
 
 
@@ -11,10 +11,10 @@ class SubscribeAbstract(ABC):
         raise NotImplementedError
 
 
-class SubscriberBase(SubscribeAbstract):
+class SubscriberBase(SubscribeAbstract, Base):
 
     def __init__(self, global_state: GlobalState, subscribe_events: list = False):
-        self._attrs = Dict()
+
         self.subscribe_events = subscribe_events
         self.global_state = global_state
         
@@ -26,15 +26,6 @@ class SubscriberBase(SubscribeAbstract):
         for event in self.subscribe_events:
             self.global_state.unregister(event, self)
 
-    @property
-    def attrs(self):
-        """I'm the 'x' property."""
-        return self._attrs
-
-    @attrs.setter
-    def attrs(self, dictionary):
-        _attrs = always_merger.merge(dictionary, self._attrs)
-        self._attrs = Dict(_attrs)
 
     def new_subscribe_events(self, event):
         self.subscribe_events.append(event)

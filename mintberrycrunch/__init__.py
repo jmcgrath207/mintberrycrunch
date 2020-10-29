@@ -5,25 +5,22 @@ from asyncio import BoundedSemaphore, gather
 from mintberrycrunch.global_state import GlobalState
 from mintberrycrunch.group import Group
 from mintberrycrunch.host import Host
+from mintberrycrunch.task import Task
 from deepmerge import always_merger
 import copy
 
 app = SimpleNamespace()
 
-from mintberrycrunch.ssh import ssh_sequential
-
-app.ssh_sequential = ssh_sequential
 
 
-async def init(*args, **kwargs) -> None:
-    create_states(*args, **kwargs)
+
+async def init(*args) -> None:
+    create_states(args)
     await route_tasks()
 
 
-def create_states(*args, **kwargs):
-    parms = process_parms(args)
 
-    app.global_state = GlobalState()
+
 
 
 def normalize_groups_hosts(config_dict: dict):
@@ -47,7 +44,7 @@ def normalize_groups_hosts(config_dict: dict):
     return config_dict
 
 
-def process_parms(args):
+def create_states(args):
     app.global_state = GlobalState()
     temp_list = []
     for x in args:
@@ -65,6 +62,9 @@ def process_parms(args):
 
     for key, value in merged_dict["groups"].items():
         Group(key, app.global_state, value)
+
+    for key, value in merged_dict["tasks"].items():
+        Task(key, app.global_state, value)
 
     print()
 
