@@ -35,3 +35,7 @@ class SubscriberBase(SubscribeAbstract):
     def attrs(self, dictionary):
         _attrs = always_merger.merge(dictionary, self._attrs)
         self._attrs = Dict(_attrs)
+
+    def new_subscribe_events(self, event):
+        self.subscribe_events.append(event)
+        self.global_state.register(event, self)

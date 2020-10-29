@@ -9,10 +9,17 @@ class Group(SubscriberBase):
         subscribe_events = ["Groups", "Global", f"Group_{self.name}"]
         super().__init__(global_state, subscribe_events)
         hosts_list = group_dict.pop('hosts')
-        hosts = []
+        self.hosts = []
         self.attrs = group_dict
+        all_hosts_names = {x.name: x for x in global_state.subscribers['Hosts']}
         for host in hosts_list:
-            hosts.append(Host(host, global_state, self))
+            if bool(all_hosts_names.get(host['name'])):
+                host = all_hosts_names.get(host['name'])
+                self.hosts.append(host)
+                host.groups.append(self)
+                host.new_subscribe_events(f"Group_{self.name}")
+
+
 
 
         print()

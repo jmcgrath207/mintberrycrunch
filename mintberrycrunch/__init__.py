@@ -6,6 +6,7 @@ from mintberrycrunch.global_state import GlobalState
 from mintberrycrunch.group import Group
 from mintberrycrunch.host import Host
 from deepmerge import always_merger
+import copy
 
 app = SimpleNamespace()
 
@@ -19,14 +20,31 @@ async def init(*args, **kwargs) -> None:
     await route_tasks()
 
 
-
 def create_states(*args, **kwargs):
-
     parms = process_parms(args)
-
 
     app.global_state = GlobalState()
 
+
+def normalize_groups_hosts(config_dict: dict):
+    group_dict = config_dict.pop('groups')
+    temp_group_dict = {}
+    for key, value in group_dict.items():
+        hosts = value.pop('hosts')
+        temp_group_dict[key] = value
+        temp_hosts_list = []
+        for host in hosts:
+            if isinstance(host, str):
+                if bool(temp_group_dict.get(host)):
+                    temp_hosts_list.extend(temp_group_dict[host]['hosts'])
+                else:
+                    temp_hosts_list.append({'name': host, 'address': host})
+            else:
+                temp_hosts_list.append(host)
+        temp_group_dict[key]['hosts'] = temp_hosts_list
+
+    config_dict['groups'] = temp_group_dict
+    return config_dict
 
 
 def process_parms(args):
@@ -35,8 +53,16 @@ def process_parms(args):
     for x in args:
         with open(x, 'r') as stream:
             temp_list.append(yaml.safe_load(stream))
-    merged_dict = always_merger.merge(*temp_list)
-    group_names = [ x for x in merged_dict["groups"].keys() ]
+    merged_dict = normalize_groups_hosts(always_merger.merge(*temp_list))
+    all_hosts = []
+    for key, value in merged_dict["groups"].items():
+        all_hosts.extend(value['hosts'])
+
+    reduce_duplicates_hosts = copy.deepcopy([i for n, i in enumerate(all_hosts) if i not in all_hosts[n + 1:]])
+
+    for host in reduce_duplicates_hosts:
+        Host(host, app.global_state)
+
     for key, value in merged_dict["groups"].items():
         Group(key, app.global_state, value)
 
@@ -63,8 +89,8 @@ def build_func_parms(task_name: str, task_meta: dict, run_func: callable) -> cal
             env_vars = {}
 
         yield concurrency_limit_semaphore(semaphore=BoundedSemaphore(task_meta["conn_limit"]),
-                                func=run_func(script_path=task_meta["script_path"],
-                                              host=host, env_vars=env_vars))
+                                          func=run_func(script_path=task_meta["script_path"],
+                                                        host=host, env_vars=env_vars))
 
 
 async def route_tasks():
