@@ -9,6 +9,8 @@ from mintberrycrunch.task import Task
 from deepmerge import always_merger
 import copy
 
+
+
 app = SimpleNamespace()
 
 
@@ -17,8 +19,53 @@ async def init(*args) -> None:
     await route_tasks()
 
 
+def resolve_ref_config(config_list: list, no_ref_list: list = None) -> list:
+    ref_list = []
+    results_list = []
+    if not no_ref_list:
+        no_ref_list = []
+    for x in config_list:
+        if bool(x.get('ref')):
+            ref_list.append({'path': x['path'], 'ref': x.get('ref')})
+            x.pop('ref')
+        if bool(x.get('groups')) and bool(x.get('groups').get('ref')):
+            ref_list.append({'path': x['path'], 'ref': x.get('groups').get('ref')})
+            x.get('groups').pop('ref')
+        if bool(x.get('global-state')) and bool(x.get('global-state').get('ref')):
+            ref_list.append({'path': x['path'], 'ref': x.get('global-state').get('ref')})
+            x.get('global-state').pop('ref')
+        if bool(x.get('tasks')) and bool(x.get('tasks').get('ref')):
+            ref_list.append({'path': x['path'], 'ref': x.get('tasks').get('ref')})
+            x.get('tasks').pop('ref')
+
+        no_ref_list.append(x)
+
+    if not ref_list:
+        return no_ref_list
+    else:
+        for x in ref_list:
+            for ref in x['ref']:
+                ref_path = (Path(x['path']).parent / ref).resolve()
+                with open(ref_path, 'r') as stream:
+                    results_list.append({**{'path': str(ref_path)}, **yaml.safe_load(stream)})
+
+    if len(no_ref_list) > 2000:
+        raise RecursionError
+
+    return resolve_ref_config(results_list, no_ref_list)
+
+
+def deep_merge(dict_lists: list) -> dict:
+    if len(dict_lists) == 1:
+        return dict_lists[0]
+    else:
+        dict_lists.append(always_merger.merge(dict_lists.pop(), dict_lists.pop()))
+        return deep_merge(dict_lists)
+
+
 def normalize(config_list: list) -> dict:
     temp_list = []
+    config_list = resolve_ref_config(config_list)
     for config in config_list:
         if bool(config.get('groups')):
             config = normalize_groups(config)
@@ -26,7 +73,7 @@ def normalize(config_list: list) -> dict:
             config = normalize_tasks(config)
         temp_list.append(config)
 
-    config_dict = always_merger.merge(*temp_list)
+    config_dict = deep_merge(temp_list)
     del config_dict['path']
     return config_dict
 
@@ -43,7 +90,6 @@ def normalize_tasks(config_dict: dict):
             raise FileNotFoundError
     config_dict['tasks'] = temp_tasks_dict
     return config_dict
-
 
 
 def normalize_groups(config_dict: dict):
