@@ -8,8 +8,7 @@ from mintberrycrunch.host import Host
 from mintberrycrunch.task import Task
 from deepmerge import always_merger
 import copy
-
-
+from typing import List
 
 app = SimpleNamespace()
 
@@ -19,37 +18,50 @@ async def init(*args) -> None:
     await route_tasks()
 
 
-def resolve_ref_config(config_list: list, no_ref_list: list = None) -> list:
-    ref_list = []
+def get_resolve_file(path: str, ref_list: list) -> List[dict]:
+    results = []
+    for ref in ref_list:
+        ref_path = (Path(path).parent / ref).resolve()
+        with open(ref_path, 'r') as stream:
+            results.append({**{'path': str(ref_path)}, **yaml.safe_load(stream)})
+    return results
+
+
+def resolve_ref_config(config_list: list, no_ref_list: list = None) -> List[dict]:
     results_list = []
     if not no_ref_list:
         no_ref_list = []
-    for x in config_list:
-        if bool(x.get('ref')):
-            ref_list.append({'path': x['path'], 'ref': x.get('ref')})
-            x.pop('ref')
-        if bool(x.get('groups')) and bool(x.get('groups').get('ref')):
-            ref_list.append({'path': x['path'], 'ref': x.get('groups').get('ref')})
-            x.get('groups').pop('ref')
-        if bool(x.get('global-state')) and bool(x.get('global-state').get('ref')):
-            ref_list.append({'path': x['path'], 'ref': x.get('global-state').get('ref')})
-            x.get('global-state').pop('ref')
-        if bool(x.get('tasks')) and bool(x.get('tasks').get('ref')):
-            ref_list.append({'path': x['path'], 'ref': x.get('tasks').get('ref')})
-            x.get('tasks').pop('ref')
+    for conf in config_list:
 
-        no_ref_list.append(x)
+        if bool(conf.get('ref')):
+            resolved_list = get_resolve_file(conf['path'], conf['ref'])
+            results_list.extend(resolved_list)
+            conf.pop('ref')
 
-    if not ref_list:
+        if bool(conf.get('groups')) and bool(conf.get('groups').get('ref')):
+            resolved_list = get_resolve_file(conf['path'], conf['groups']['ref'])
+            results_list.extend(resolved_list)
+            conf['groups'].pop('ref')
+
+        if bool(conf.get('global-state')) and bool(conf.get('global-state').get('ref')):
+            resolved_list = get_resolve_file(conf['path'], conf['global-state']['ref'])
+            results_list.extend(resolved_list)
+            conf['global-state'].pop('ref')
+
+        if bool(conf.get('tasks')):
+            for task_order, task in enumerate(conf['tasks']):
+                if bool(task.get('ref')):
+                    resolved_list = get_resolve_file(conf['path'], task['ref'])
+                    [y.update({'parent_path': conf['path'], 'ref_location': task_order, 'ref_order': num}) for num, y in enumerate(resolved_list)]
+                    results_list.extend(resolved_list)
+                    conf['tasks'][task_order] = resolved_list
+
+        no_ref_list.append(conf)
+
+    if not results_list:
         return no_ref_list
-    else:
-        for x in ref_list:
-            for ref in x['ref']:
-                ref_path = (Path(x['path']).parent / ref).resolve()
-                with open(ref_path, 'r') as stream:
-                    results_list.append({**{'path': str(ref_path)}, **yaml.safe_load(stream)})
 
-    if len(no_ref_list) > 2000:
+    if len(no_ref_list) > 200 or len(results_list) > 200:
         raise RecursionError
 
     return resolve_ref_config(results_list, no_ref_list)
