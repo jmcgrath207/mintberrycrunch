@@ -4,7 +4,8 @@ from mintberrycrunch.global_state import GlobalState
 
 class Task(SubscriberBase):
 
-    def __init__(self, name: str, global_state: GlobalState, task_dict: dict):
+    def __init__(self, order: int, name: str, global_state: GlobalState, task_dict: dict):
+        self.order = order
         self.name = name
         subscribe_events = ["Tasks", "Global", f"Task_{self.name}"]
         super().__init__(global_state, subscribe_events)
