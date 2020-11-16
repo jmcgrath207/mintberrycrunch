@@ -9,6 +9,13 @@ class Task(SubscriberBase):
         self.name = name
         subscribe_events = ["Tasks", "Global", f"Task_{self.name}"]
         super().__init__(global_state, subscribe_events)
+        self.description = task_dict.pop('description') if task_dict.get('description') else None
+        self.script_path = task_dict.pop('script_path')
+        self.exec_order = task_dict.pop('exec_order')
+        self.conn_type = task_dict.pop('conn_type')
+        self.concurrency = task_dict.pop('concurrency')
+        self.parallelism = task_dict.pop('parallelism')
+
         self.global_state.tasks = self.global_state.subscribers['Tasks']
         groups_list = [task_dict['groups']] \
             if isinstance(task_dict['groups'], str) else task_dict['groups']
@@ -16,6 +23,7 @@ class Task(SubscriberBase):
         task_dict.pop('groups')
         self.groups = []
         self.attrs = task_dict
+
         all_group_names = {x.name: x for x in global_state.subscribers['Groups']}
         for group in groups_list:
             if bool(all_group_names.get(group)):

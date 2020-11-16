@@ -6,6 +6,7 @@ from mintberrycrunch.global_state import GlobalState
 from mintberrycrunch.group import Group
 from mintberrycrunch.host import Host
 from mintberrycrunch.task import Task
+from mintberrycrunch.ssh import SSH
 from deepmerge import always_merger
 import copy
 from typing import List
@@ -247,29 +248,42 @@ class ParserConfig:
         async with semaphore:
             return await func
 
-    def build_func_parms(self, task_name: str, task_meta: dict, run_func: callable) -> callable:
-        for host_name, host_address in app.hosts.get(task_meta['host_group']).items():
-            host = {"host_name": host_name, "host_address": host_address}
-            if app.env_vars:
-                task_vars = app.env_vars.get('tasks') or {}
-                task_vars = task_vars.get(task_name)
-                host_vars = app.env_vars.get('hosts') or {}
-                host_vars = host_vars.get(task_meta['host_group']) or {}
-                global_vars = app.env_vars.get('global') or {}
+    def build_func_parms(self, task: Task) -> callable:
+        try:
+            for group in task.groups:
 
-                env_vars = {**task_vars, **host_vars, **global_vars}
-            else:
-                env_vars = {}
+                for host in group.hosts:
+                    try:
+                        conn_class = getattr(host, f'{task.conn_type}')
+                    except AttributeError:
+                        if task.conn_type == 'ssh':
+                            host.ssh = SSH(host.attrs)
+                            conn_class = host.ssh
 
-            yield self.concurrency_limit_semaphore(semaphore=BoundedSemaphore(task_meta["conn_limit"]),
-                                                   func=run_func(script_path=task_meta["script_path"],
-                                                                 host=host, env_vars=env_vars))
+                    run_func = getattr(conn_class, f'{task.exec_order}')
+
+                    conn_vars = getattr(host.attrs, f'{task.conn_type}')
+
+                    """
+                    Environment vars are preferred from right to left. ex. var SETUP in task.attrs would override var SETUP
+                    in host.global_state.attrs
+                    """
+                    env_vars = {**host.global_state.attrs, **group.attrs, **host.attrs, **conn_vars, **task.attrs}
+                    if env_vars.get(f'{task.conn_type}'):
+                        ## TODO: issue with home-base group getting ssh address information
+                        conn_class.attrs = env_vars.pop(f'{task.conn_type}')
+
+                    env_vars = env_vars.pop('vars')
+
+                    yield self.concurrency_limit_semaphore(semaphore=BoundedSemaphore(task.concurrency),
+                                                           func=run_func(script_path=task.script_path,
+                                                                         host=host, env_vars=env_vars))
+        except Exception:
+            print(f'could not find connection type {task.conn_type}_{task.exec_order}')
 
     async def route_tasks(self):
-        for task_name, task_meta in app.tasks.items():
-            task_meta['script_path'] = Path(app.tasks_path).joinpath(task_meta['script_path']).resolve()
-            run_func = getattr(app, f'{task_meta["conn_type"]}_{task_meta["exec_order"]}')
-            results = [x for x in await gather(*self.build_func_parms(task_name, task_meta, run_func))]
+        for task in app.global_state.tasks:
+            results = [x for x in await gather(*self.build_func_parms(task))]
             print()
 
 
