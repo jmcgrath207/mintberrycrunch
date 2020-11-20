@@ -10,6 +10,7 @@ class SSH(Base):
         self.attrs = attrs
 
     async def sequential(self, script_path: str, host: 'Host', env_vars: dict) -> None:
-        print(host.name)
-        print(env_vars)
-        print(script_path)
+        #print(host.name)
+        #print(env_vars)
+        #print(script_path)
+        pass
